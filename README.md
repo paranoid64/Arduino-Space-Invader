@@ -83,7 +83,7 @@ Alle Elemente werden über die Adafruit GFX Library auf dem ST7735 TFT gezeichne
 
 ---
 
-## 🧪 Bibliotheken (Arduino IDE)
+## Bibliotheken (Arduino IDE)
 
 Folgende Bibliotheken müssen über den **Bibliotheksverwalter** installiert werden:
 
