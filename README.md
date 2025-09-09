@@ -74,7 +74,7 @@ Alle Elemente werden über die Adafruit GFX Library auf dem ST7735 TFT gezeichne
 
 > **Hinweis:** Die Taster werden mit `INPUT_PULLUP` verwendet. Das bedeutet: ein Taster schließt auf GND, wenn gedrückt.
 
-### 🔊 Piezo-Buzzer
+### Piezo-Buzzer
 
 | Buzzer-Pin | Arduino-Pin |
 |------------|-------------|
