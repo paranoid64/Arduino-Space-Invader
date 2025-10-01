@@ -3,9 +3,9 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 
-#define TFT_CS   A3  // statt 10
-#define TFT_DC   A2  // statt 8
-#define TFT_RST  A1  // statt 9
+#define TFT_CS   A3
+#define TFT_DC   A2
+#define TFT_RST  A1
 #define SD_CS    4
 
 #define BUTTON_LEFT   2
@@ -15,14 +15,17 @@
 #define MAX_HIGHSCORES 10
 #define HUD_HEIGHT 20  // Bereich oben für Score & Lives reservieren
 
-#define SOUND_PIN     8 //6
+#define SOUND_PIN     8
 
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+
+unsigned long lastFrameTime = 0;
+const uint8_t FRAME_DURATION = 33;  // 1000 ms / 30 FPS ≈ 33
 
 struct Highscore {
   char name[4];     // 3 Buchstaben + Nullterminator
   uint16_t score;
-  uint8_t level;    // NEU: Level hinzufügen
+  uint8_t level;
 };
 
 Highscore highscores[MAX_HIGHSCORES];
@@ -55,6 +58,7 @@ int8_t lives;
 struct EnemyBullet {
   int x, y;
   bool active;
+  int8_t shooterId;
 };
 
 EnemyBullet enemyBullets[MAX_ENEMY_BULLETS];
@@ -136,11 +140,20 @@ void loop() {
   showStartMenu();
   startGame();
 
+  unsigned long lastFrameTime = 0;
+  const uint8_t FRAME_DURATION = 33; // ~30 FPS
+
   while (lives > 0) {
-    updateGame();
-    updateEnemies();
-    drawGame();
+    unsigned long now = millis();
+    if (now - lastFrameTime >= FRAME_DURATION) {
+      lastFrameTime = now;
+
+      updateGame();
+      updateEnemies();
+      drawGame();
+    }
   }
+
   showGameOverScreen();
 }
 
@@ -165,7 +178,7 @@ void printPaddedNumber(uint32_t number, uint8_t width) {
   }
 }
 
-// --- Startmenü ---
+// Startmenü
 void showStartMenu() {
   tft.fillScreen(ST77XX_BLACK);
   tft.setTextSize(1);
@@ -226,7 +239,7 @@ void showStartMenu() {
   delay(300);
 }
 
-// --- Highscore Laden ---
+// Highscore Laden
 void loadHighscores() {
   File file = SD.open("score.txt");
 
@@ -287,7 +300,7 @@ void saveHighscores() {
   file.close();
 }
 
-// --- Spiel starten ---
+// Spiel starten
 void startGame() {
   tft.fillScreen(ST77XX_BLACK);
 
@@ -295,6 +308,11 @@ void startGame() {
   playerY = tft.height() - 10;
 
   bulletActive = false;
+
+  for (int i = 0; i < MAX_ENEMY_BULLETS; i++) {
+    enemyBullets[i].active = false;
+    enemyBullets[i].shooterId = -1;
+  }
 
   score = 0;
   lives = 3;
@@ -313,6 +331,8 @@ void startGame() {
     lastEnemyX[i] = -1;
     lastEnemyY[i] = -1;
   }
+
+  clearEnemyBullets();
 }
 
 void showLevelBanner(uint8_t levelNumber) {
@@ -327,6 +347,7 @@ void showLevelBanner(uint8_t levelNumber) {
 }
 
 void spawnEnemies() {
+  clearEnemyBullets();
   for (int row = 0; row < ENEMY_ROWS; row++) {
     for (int col = 0; col < ENEMY_COLS; col++) {
       int idx = row * ENEMY_COLS + col;
@@ -347,6 +368,11 @@ void resetScreenAfterLifeLost() {
   lastScore = -1; 
   lastLives = -1;
 
+  for (int8_t i = 0; i < MAX_ENEMY_BULLETS; i++) {
+    enemyBullets[i].active = false;
+    enemyBullets[i].shooterId = -1;
+  }
+
   for (int8_t i = 0; i < MAX_ENEMIES; i++) {
     lastEnemyX[i] = -1;
     lastEnemyY[i] = -1;
@@ -357,6 +383,16 @@ void resetScreenAfterLifeLost() {
   lastBulletY = -1;
 
   drawGame();
+}
+
+void clearEnemyBullets() {
+  for (int8_t i = 0; i < MAX_ENEMY_BULLETS; i++) {
+    if (enemyBullets[i].active) {
+      tft.fillRect(enemyBullets[i].x, enemyBullets[i].y, 2, 5, ST77XX_BLACK);
+    }
+    enemyBullets[i].active = false;
+    enemyBullets[i].shooterId = -1;
+  }
 }
 
 void updateEnemies() {
@@ -422,7 +458,7 @@ void updateEnemies() {
 
 }
 
-// --- Spiel-Update ---
+// Spiel-Update
 void updateGame() {
   // Spieler bewegen
   if (digitalRead(BUTTON_LEFT) == LOW && playerX > 0) playerX -= 2;
@@ -504,6 +540,7 @@ void checkLevelUp() {
     updateEnemySpeed();
     showLevelBanner(level);
     spawnEnemies();
+    clearEnemyBullets();
   }
 }
 
@@ -517,6 +554,14 @@ void updateEnemyBulletBehavior() {
 
 void updateEnemySpeed() {
   enemyMoveDelay = max(5, 300 / level);
+  //enemyMoveDelay = max(80, 300 - (level - 1) * 20);
+
+  //uint8_t remainingEnemies = 0;
+  //for (uint8_t i = 0; i < MAX_ENEMIES; i++) {
+  //  if (enemies[i].active) remainingEnemies++;
+  //}
+
+  //enemyMoveDelay = constrain(200 - remainingEnemies * 5, 30, 200);
   updateEnemyBulletBehavior();
 }
 
@@ -655,18 +700,32 @@ void handleEnemyBullets() {
 
     if (count > 0) {
       int shooterIndex = shooters[random(count)];
-      int bx = enemies[shooterIndex].x + ENEMY_WIDTH / 2;
-      int by = enemies[shooterIndex].y + ENEMY_HEIGHT;
 
-      for (int i = 0; i < MAX_ENEMY_BULLETS; i++) {
-        if (!enemyBullets[i].active) {
-          enemyBullets[i].x = bx;
-          enemyBullets[i].y = by;
-          enemyBullets[i].active = true;
+      // Prüfen: Hat dieser Gegner schon einen aktiven Schuss?
+      bool alreadyShot = false;
+      for (uint8_t i = 0; i < MAX_ENEMY_BULLETS; i++) {
+        if (enemyBullets[i].active && enemyBullets[i].shooterId == shooterIndex) {
+          alreadyShot = true;
           break;
         }
       }
+
+      if (!alreadyShot) {
+        int bx = enemies[shooterIndex].x + ENEMY_WIDTH / 2;
+        int by = enemies[shooterIndex].y + ENEMY_HEIGHT;
+
+        for (uint8_t i = 0; i < MAX_ENEMY_BULLETS; i++) {
+          if (!enemyBullets[i].active) {
+            enemyBullets[i].x = bx;
+            enemyBullets[i].y = by;
+            enemyBullets[i].active = true;
+            enemyBullets[i].shooterId = shooterIndex; // Merke den Gegner
+            break;
+          }
+        }
+      }
     }
+
   }
 
   // Bewegung + Kollision bleibt unverändert
@@ -677,6 +736,7 @@ void handleEnemyBullets() {
 
     if (enemyBullets[i].y > tft.height()) {
       enemyBullets[i].active = false;
+      enemyBullets[i].shooterId = -1;
       continue;
     }
 
@@ -685,6 +745,7 @@ void handleEnemyBullets() {
         enemyBullets[i].x >= playerX &&
         enemyBullets[i].x <= playerX + 8) {
       enemyBullets[i].active = false;
+      enemyBullets[i].shooterId = -1;
       lives--;
       playLoseLifeSound();
 
@@ -750,7 +811,7 @@ void enterName(char* nameBuffer) {
   nameBuffer[3] = '\0';
 }
 
-// --- Sounds ---
+// Sounds
 void playShootSound() {
   tone(SOUND_PIN, 1000, 50);
 }
