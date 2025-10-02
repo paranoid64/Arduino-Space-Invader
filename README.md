@@ -111,4 +111,9 @@ Folgende Bibliotheken müssen über den **Bibliotheksverwalter** installiert wer
 - Formatiere die SD-Karte als **FAT16 oder FAT32**
 - Keine Dateien notwendig beim ersten Start – `score.txt` wird automatisch
 - Format: ABC 1250 02 (Name, Score, Level)
-  
+
+---
+
+## LaserCut:
+
+Die Datei „arcade_case_with_shaped_sides.dxf” befindet sich im Ordner „ArduinoSpaceInvader” und wurde mit LibreCAD (https://librecad.org/) erstellt.
