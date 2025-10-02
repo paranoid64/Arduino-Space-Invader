@@ -117,3 +117,7 @@ Folgende Bibliotheken müssen über den **Bibliotheksverwalter** installiert wer
 ## LaserCut:
 
 Die Datei „arcade_case_with_shaped_sides.dxf” befindet sich im Ordner „ArduinoSpaceInvader” und wurde mit LibreCAD (https://librecad.org/) erstellt.
+
+## Sticker Din A4
+
+sticker.pdf
